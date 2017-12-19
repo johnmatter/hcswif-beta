@@ -23,7 +23,6 @@ datestr = now.strftime("%Y%m%d%H%M")
 
 # workdir should be a user's or an experiment's
 work_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser())
-work_dir = '/Users/matter/jlab/hcswif'
 
 # if work_dir doesn't exist, exit and warn user
 if not os.path.isdir(work_dir):
