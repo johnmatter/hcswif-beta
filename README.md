@@ -4,7 +4,7 @@ on ifarm using swif.
 
 Usage:
 ```
-python hcswif.py {hms | shms | coin} --run <list of runs>
+python hcswif.py (HMS | SHMS | COIN) --run <list of runs> --events <number of events> --outfile <output json>
 ```
 
 Generates a file named hcswif##########json. The number will be the time the
