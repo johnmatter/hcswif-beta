@@ -1,0 +1,32 @@
+{
+    "name":"JOB_NAME",
+    "stdout":"JOB_STDOUT",
+    "stderr":"JOB_STDERR",
+    "command":"JOB_CMD",
+    "project":"JOB_PROJECT",
+    "track":"JOB_TRACK",
+    "os":"JOB_OS",
+    "diskBytes":10000000000,
+    "ramBytes":8000000000,
+    "cpuCores":8,
+    "timeSecs":14400,
+    "shell":"JOB_SHELL",
+    "input":[
+        {
+            "local":"JOB_INPUT_LOCAL",
+            "remote":"JOB_INPUT_REMOTE"
+        }
+    ],
+    "output":[
+        {
+            "local":"JOB_OUTPUT_LOCAL",
+            "remote":"JOB_OUTPUT_REMOTE"
+        }
+        ,
+
+        {
+            "local":"JOB_META_LOCAL",
+            "remote":"JOB_META_REMOTE"
+        }
+    ]
+}
