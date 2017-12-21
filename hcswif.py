@@ -29,14 +29,15 @@ hcswif_prefix = 'hcswif' + datestr
 
 #------------------------------------------------------------------------------
 # Parse command line arguments
-parser = argparse.ArgumentParser(usage='python hcswif.py (HMS | SHMS | COIN)' +
+parser = argparse.ArgumentParser(usage='python hcswif.py' +
+                                       ' --spectrometer (HMS|SHMS| COIN)' +
                                        ' --run <list of runs>' +
                                        ' --events <number of events>' +
                                        ' --outfile <output json>' +
                                        ' --project <project>')
 
 # Add arguments
-parser.add_argument('spectrometer', nargs=1, 
+parser.add_argument('--spectrometer', nargs=1, 
                     help='spectrometer to analyze (HMS, SHMS, COIN)')
 parser.add_argument('--run', nargs='+', dest='run', 
                     help='a space-separated list of run number(s)')
