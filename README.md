@@ -7,9 +7,8 @@ Usage:
 python hcswif.py (HMS | SHMS | COIN) --run <list of runs> --events <number of events> --outfile <output json>
 ```
 
-Generates a file named hcswif##########json. The number will be the time the
-file was created in the format YYYYMMDDhhmm. The JSON data describes a swif
-workflow that can be imported with:
+Generates a file (default name hcswif##########.json) containing JSON data that
+describe a swif workflow. The JSON data should be imported with:
 ```
 swif import -workflow foo.json
 ```
