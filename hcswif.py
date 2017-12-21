@@ -32,7 +32,8 @@ hcswif_prefix = 'hcswif' + datestr
 parser = argparse.ArgumentParser(usage='python hcswif.py (HMS | SHMS | COIN)' +
                                        ' --run <list of runs>' +
                                        ' --events <number of events>' +
-                                       ' --outfile <output json>')
+                                       ' --outfile <output json>' +
+                                       ' --project <project>')
 
 # Add arguments
 parser.add_argument('spectrometer', nargs=1, 
