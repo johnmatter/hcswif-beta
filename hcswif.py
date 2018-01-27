@@ -5,12 +5,13 @@ import json
 import getpass
 import argparse
 import datetime
+import warnings
 
 #------------------------------------------------------------------------------
 # Preliminary workspace stuff
 
 # Where do you want the output of your analyses?
-work_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser())
+work_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser() , 'hcswif')
 if not os.path.isdir(work_dir):
     raise StandardError('work_dir: ' + work_dir + ' does not exist')
 
@@ -30,15 +31,19 @@ hcswif_prefix = 'hcswif' + datestr
 #------------------------------------------------------------------------------
 # Parse command line arguments
 parser = argparse.ArgumentParser(usage='python hcswif.py' +
-                                       ' --spectrometer (HMS|SHMS| COIN)' +
+                                       ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' +
                                        ' --run <list of runs>' +
                                        ' --events <number of events>' +
                                        ' --outfile <output json>' +
                                        ' --project <project>')
 
+# Check if any args specified
+if len(sys.argv) < 2:
+    raise StandardError(parser.print_help())
+
 # Add arguments
 parser.add_argument('--spectrometer', nargs=1, 
-                    help='spectrometer to analyze (HMS, SHMS, COIN)')
+                    help='spectrometer to analyze (HMS, SHMS, COIN, HMS_COIN, SHMS_COIN)')
 parser.add_argument('--run', nargs='+', dest='run', 
                     help='a space-separated list of run number(s)')
 parser.add_argument('--events', nargs=1, dest='events',
@@ -54,10 +59,10 @@ parsed_args = parser.parse_args()
 # Check validity of arguments, then assign 
 # Spectrometer
 spectrometer = parsed_args.spectrometer[0]
-if spectrometer.upper() not in ['HMS','SHMS','COIN']:
-    raise ValueError('Spectrometer must be HMS, SHMS, or COIN')
+if spectrometer.upper() not in ['HMS','SHMS','COIN', 'HMS_COIN', 'SHMS_COIN']:
+    raise ValueError('Spectrometer must be HMS, SHMS, COIN, HMS_COIN, or SHMS_COIN')
 
-# Number of events
+# Number of events; default is 50000
 if parsed_args.events==None:
     evts = 50000
 else:
@@ -65,7 +70,7 @@ else:
 
 # Run(s)
 if parsed_args.run==None:
-    raise StandardError('Must specify run(s) to process')
+    StandardError('Must specify run(s) to process')
 else:
     runs = parsed_args.run
 
@@ -78,7 +83,8 @@ else:
 
 # Project
 if parsed_args.project==None:
-    raise StandardError('Must specify a project')
+    warnings.warn('No project specified. Assuming project=c-comm2017')
+    project = 'c-comm2017'
 else:
     project = parsed_args.project[0]
 
@@ -102,8 +108,12 @@ for run in runs:
     # Initialize JSON
     job = copy.deepcopy(job_template) 
 
-    # Assume coda name e.g. shms_all_01634
-    coda_stem = spectrometer.lower() + '_all_' + str(run).zfill(5)
+    # Assume coda stem looks like shms_all_01634, hms_all_01634, or coin_all_01634
+    if 'coin' in spectrometer:
+        coda_stem = spectrometer.lower() + '_all_' + str(run).zfill(5)
+    else:
+        coda_stem = 'coin_all_' + str(run).zfill(5)
+
     coda = os.path.join(raw_dir, coda_stem + '.dat')
 
     # Check if raw data file exist

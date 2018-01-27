@@ -2,7 +2,7 @@
 
 # -----------------------------------------------------------------------------
 #  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#  !!!       CHANGE ME IF THIS IS NOT WHERE hallc_replay AND hcana live   !!!
+#  !!!     CHANGE ME IF THIS IS NOT WHERE hallc_replay AND hcana LIVE     !!!
 #  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 export hcana_dir=/volatile/hallc/comm2017/$USER/hcana
 export hallc_replay_dir=/volatile/hallc/comm2017/$USER/hallc_replay
