@@ -95,7 +95,7 @@ else:
 
 # Number of events; default is 50000
 if parsed_args.events==None:
-    warnings.warn('No events specified. Analyzing 50k events')
+    warnings.warn('No events specified. Analyzing 50k events. Specify -1 events to analyze all events')
     evts = 50000
 else:
     evts = parsed_args.events[0]
