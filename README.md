@@ -8,9 +8,9 @@ python hcswif.py --spectrometer (HMS|SHMS|COIN) --run <list of runs> --events <n
 ```
 
 Generates a file (default name hcswif##########.json) containing JSON data that
-describe a swif workflow. The JSON data should be imported with:
+describe a swif workflow. The JSON data should be imported as follows:
 ```
-swif import -workflow foo.json
+swif import -file hcswif201801271733.json
 ```
 
 The output is formatted as one long string, but the following command will

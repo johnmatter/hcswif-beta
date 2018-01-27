@@ -35,6 +35,7 @@ parser = argparse.ArgumentParser(usage='python hcswif.py' +
                                        ' --run <list of runs>' +
                                        ' --events <number of events>' +
                                        ' --outfile <output json>' +
+                                       ' --replay <hcana replay script>' +
                                        ' --project <project>')
 
 # Check if any args specified
@@ -52,6 +53,8 @@ parser.add_argument('--outfile', nargs=1, dest='outfile',
                     help='name of output json file')
 parser.add_argument('--project', nargs=1, dest='project', 
                     help='name of project')
+parser.add_argument('--replay', nargs=1, dest='replay', 
+                    help='hcana replay script')
 
 # Parse arguments
 parsed_args = parser.parse_args()
@@ -62,8 +65,37 @@ spectrometer = parsed_args.spectrometer[0]
 if spectrometer.upper() not in ['HMS','SHMS','COIN', 'HMS_COIN', 'SHMS_COIN']:
     raise ValueError('Spectrometer must be HMS, SHMS, COIN, HMS_COIN, or SHMS_COIN')
 
+# Replay script to use
+if parsed_args.replay==None:
+    # User has not specified a script, so we provide them with default options
+
+    # COIN has two options: hElec_pProt or pElec_hProt depending on 
+    # the spectrometer configuration
+    if spectrometer.upper() == 'COIN':
+        print 'COIN replay script depends on spectrometer configuration.'
+        print '1) HMS=e, SHMS=p (SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C)'
+        print '1) HMS=p, SHMS=e (SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C)'
+        replay_script = input("Enter 1 or 2: ")
+        
+        script_dict = { 1 : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C', 
+                        2 : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C' }
+        replay_script = script_dict[replay_script]
+
+    # We have 4 options for singles replay; 'real' singles or 'coin' singles
+    else:
+        script_dict = { 'HMS' : 'SCRIPTS/HMS/PRODUCTION/replay_production_all_hms.C',
+                        'SHMS' : 'SCRIPTS/SHMS/PRODUCTION/replay_production_all_shms.C',
+                        'HMS_COIN' : 'SCRIPTS/HMS/PRODUCTION/replay_production_hms_coin.C',
+                        'SHMS_COIN' : 'SCRIPTS/SHMS/PRODUCTION/replay_production_shms_coin.C' }
+        replay_script = script_dict[spectrometer.upper()]
+
+    # User specified a script so we use that one
+else:
+    replay_script = parsed_args.replay[0]
+
 # Number of events; default is 50000
 if parsed_args.events==None:
+    warnings.warn('No events specified. Analyzing 50k events')
     evts = 50000
 else:
     evts = parsed_args.events[0]
@@ -76,6 +108,7 @@ else:
 
 # Outfile
 if parsed_args.outfile==None:
+    # No outfile specified, use datestr to create name
     outfile = hcswif_prefix + '.json'
     outfile = os.path.join(work_dir, outfile)
 else:
@@ -95,8 +128,8 @@ else:
 workflow = {}
 workflow['name'] = hcswif_prefix
 
-# Choose correct batch for config (e.g. hcswif_shms.sh)
-batch = os.path.join(hcswif_dir, 'hcswif_' + spectrometer.lower() + '.sh')
+# batch for config is hcswif.sh)
+batch = os.path.join(hcswif_dir, 'hcswif.sh')
 
 # Load template json for one job, then create list of jobs
 with open('job_template.json', 'r') as f:
@@ -108,11 +141,13 @@ for run in runs:
     # Initialize JSON
     job = copy.deepcopy(job_template) 
 
-    # Assume coda stem looks like shms_all_01634, hms_all_01634, or coin_all_01634
+    # Assume coda stem looks like shms_all_XXXXX, hms_all_XXXXX, or coin_all_XXXXX
     if 'coin' in spectrometer:
-        coda_stem = spectrometer.lower() + '_all_' + str(run).zfill(5)
-    else:
+        # shms_coin and hms_coin use same coda files as coin
         coda_stem = 'coin_all_' + str(run).zfill(5)
+    else:
+        # otherwise hms_all_XXXXX or shms_all_XXXXX
+        coda_stem = spectrometer.lower() + '_all_' + str(run).zfill(5)
 
     coda = os.path.join(raw_dir, coda_stem + '.dat')
 
@@ -128,7 +163,7 @@ for run in runs:
     job['stdout'] = os.path.join(work_dir, job['name'] + '.out')
     job['stderr'] = os.path.join(work_dir, job['name'] + '.err')
 
-    job['command'] = " ".join([batch, str(run), str(evts)])
+    job['command'] = " ".join([batch, replay_script, str(run), str(evts)])
 
     job['track'] = 'analysis'
     job['shell'] = '/bin/bash'
