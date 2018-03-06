@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 ARGC=$#
 if [[ $ARGC -ne 3 ]]; then
     echo Usage: hcswif.sh SCRIPT RUN EVENTS
@@ -19,7 +19,8 @@ if [ -z "$(which hcana)" ]; then
     exit 1
 fi
 
-# Run analysis
-# For now this just runs the production script
+# Replay the run
 cd $hallc_replay_dir
-hcana "$script($run,$evt)"
+echo pwd: $(pwd)
+echo ./hcana "$script($run,$evt)"
+./hcana "$script($run,$evt)"

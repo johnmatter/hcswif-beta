@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import copy
@@ -8,17 +10,17 @@ import datetime
 import warnings
 
 #------------------------------------------------------------------------------
-# Preliminary workspace stuff
+# Environment stuff
 
-# Where do you want the output of your analyses?
-work_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser() , 'hcswif')
-if not os.path.isdir(work_dir):
-    raise StandardError('work_dir: ' + work_dir + ' does not exist')
+# Where do you want your job output?
+out_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser() , 'hcswif/output')
+if not os.path.isdir(out_dir):
+    raise FileNotFoundError('out_dir: ' + out_dir + ' does not exist')
 
 # Where is your raw data?
 raw_dir = '/mss/hallc/spring17/raw'
 if not os.path.isdir(raw_dir):
-    raise StandardError('raw_dir: ' + raw_dir + ' does not exist')
+    raise FileNotFoundError('raw_dir: ' + raw_dir + ' does not exist')
 
 # Where is hcswif?
 hcswif_dir = os.path.dirname(os.path.realpath(__file__))
@@ -30,17 +32,21 @@ hcswif_prefix = 'hcswif' + datestr
 
 #------------------------------------------------------------------------------
 # Parse command line arguments
-parser = argparse.ArgumentParser(usage='python hcswif.py' +
-                                       ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' +
-                                       ' --run <list of runs>' +
-                                       ' --events <number of events>' +
-                                       ' --outfile <output json>' +
-                                       ' --replay <hcana replay script>' +
-                                       ' --project <project>')
+usage_str = ('\n\n'
+             'You must specify at least --spectrometer and --run' 
+             '\n\n'  
+             'python hcswif.py' 
+             ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' 
+             ' --run <a space-separated list of runs>' 
+             ' --events <number of events>' 
+             ' --outfile <output json>' 
+             ' --replay <hcana replay script>' 
+             ' --project <project>')
+parser = argparse.ArgumentParser(usage=usage_str)
 
 # Check if any args specified
 if len(sys.argv) < 2:
-    raise StandardError(parser.print_help())
+    raise RuntimeError(parser.print_help())
 
 # Add arguments
 parser.add_argument('--spectrometer', nargs=1, 
@@ -48,7 +54,7 @@ parser.add_argument('--spectrometer', nargs=1,
 parser.add_argument('--run', nargs='+', dest='run', 
                     help='a space-separated list of run number(s)')
 parser.add_argument('--events', nargs=1, dest='events',
-                    help='number of events to analyze (default=50k)')
+                    help='number of events to analyze (default=all)')
 parser.add_argument('--outfile', nargs=1, dest='outfile', 
                     help='name of output json file')
 parser.add_argument('--project', nargs=1, dest='project', 
@@ -59,11 +65,18 @@ parser.add_argument('--replay', nargs=1, dest='replay',
 # Parse arguments
 parsed_args = parser.parse_args()
 
-# Check validity of arguments, then assign 
+# Check validity of arguments, then assign  ---------------
+
 # Spectrometer
 spectrometer = parsed_args.spectrometer[0]
 if spectrometer.upper() not in ['HMS','SHMS','COIN', 'HMS_COIN', 'SHMS_COIN']:
     raise ValueError('Spectrometer must be HMS, SHMS, COIN, HMS_COIN, or SHMS_COIN')
+
+# Run(s)
+if parsed_args.run==None:
+    raise RuntimeError('Must specify run(s) to process')
+else:
+    runs = parsed_args.run
 
 # Replay script to use
 if parsed_args.replay==None:
@@ -72,16 +85,16 @@ if parsed_args.replay==None:
     # COIN has two options: hElec_pProt or pElec_hProt depending on 
     # the spectrometer configuration
     if spectrometer.upper() == 'COIN':
-        print 'COIN replay script depends on spectrometer configuration.'
-        print '1) HMS=e, SHMS=p (SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C)'
-        print '1) HMS=p, SHMS=e (SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C)'
+        print('COIN replay script depends on spectrometer configuration.')
+        print('1) HMS=e, SHMS=p (SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C)')
+        print('1) HMS=p, SHMS=e (SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C)')
         replay_script = input("Enter 1 or 2: ")
         
         script_dict = { 1 : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C', 
                         2 : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C' }
         replay_script = script_dict[replay_script]
 
-    # We have 4 options for singles replay; 'real' singles or 'coin' singles
+    # We have 4 options for singles replay; "real" singles or "coin" singles
     else:
         script_dict = { 'HMS' : 'SCRIPTS/HMS/PRODUCTION/replay_production_all_hms.C',
                         'SHMS' : 'SCRIPTS/SHMS/PRODUCTION/replay_production_all_shms.C',
@@ -93,31 +106,39 @@ if parsed_args.replay==None:
 else:
     replay_script = parsed_args.replay[0]
 
-# Number of events; default is 50000
+# Number of events; default is -1 (i.e. all)
 if parsed_args.events==None:
-    warnings.warn('No events specified. Analyzing 50k events. Specify -1 events to analyze all events')
-    evts = 50000
+    warnings.warn('No events specified. Analyzing all events.')
+    evts = -1 
 else:
     evts = parsed_args.events[0]
-
-# Run(s)
-if parsed_args.run==None:
-    StandardError('Must specify run(s) to process')
-else:
-    runs = parsed_args.run
 
 # Outfile
 if parsed_args.outfile==None:
     # No outfile specified, use datestr to create name
     outfile = hcswif_prefix + '.json'
-    outfile = os.path.join(work_dir, outfile)
+    outfile = os.path.join(out_dir, outfile)
 else:
+    # User-specified filename
     outfile = parsed_args.outfile[0]
+    # Append .json if user forgot
+    if os.path.splitext(outfile)[1]!='.json':
+        outfile = outfile + '.json'
+    # Put it in out_dir
+    outfile = os.path.join(out_dir, outfile)
 
 # Project
 if parsed_args.project==None:
-    warnings.warn('No project specified. Assuming project=c-comm2017')
-    project = 'c-comm2017'
+    warnings.warn('No project specified.')
+
+    project_prompt = 'x'
+    while project_prompt.lower() not in ['y', 'n', 'yes', 'no']:
+        project_prompt = input('Should I use project=c-comm2017? (y/n): ')
+
+    if project_prompt.lower() in ['y', 'yes']:
+        project = 'c-comm2017'
+    else:
+        raise RuntimeError('Please specify project as argument')
 else:
     project = parsed_args.project[0]
 
@@ -126,23 +147,21 @@ else:
 
 # Initialize workflow JSON data
 workflow = {}
-workflow['name'] = hcswif_prefix
+workflow_name = str.replace(outfile, ".json", "")
+workflow_name = os.path.basename(workflow_name)
+workflow['name'] = workflow_name
 
-# batch for config is hcswif.sh)
+# batch for job is hcswif.sh
 batch = os.path.join(hcswif_dir, 'hcswif.sh')
 
-# Load template json for one job, then create list of jobs
-with open('job_template.json', 'r') as f:
-    job_template = json.load(f)
-
-# Initialize dictionary whose key is the run number, value is a run's JSON data
-jobs = {}
+# Create list of jobs for workflow
+jobs = []
 for run in runs:
     # Initialize JSON
-    job = copy.deepcopy(job_template) 
+    job = {}
 
     # Assume coda stem looks like shms_all_XXXXX, hms_all_XXXXX, or coin_all_XXXXX
-    if 'coin' in spectrometer:
+    if 'coin' in spectrometer.lower():
         # shms_coin and hms_coin use same coda files as coin
         coda_stem = 'coin_all_' + str(run).zfill(5)
     else:
@@ -153,43 +172,37 @@ for run in runs:
 
     # Check if raw data file exist
     if not os.path.isfile(coda):
-        raise StandardError('RAW DATA: ' + coda + ' does not exist')
+        raise FileNotFoundError('RAW DATA: ' + coda + ' does not exist')
 
-    # Fill various fields; some are optional!
+    # Fill various fields; some are optional?
     job['project'] = project
-    job['email'] = getpass.getuser() + '@jlab.org'
     job['name'] = workflow['name'] + '_' + coda_stem
 
-    job['stdout'] = os.path.join(work_dir, job['name'] + '.out')
-    job['stderr'] = os.path.join(work_dir, job['name'] + '.err')
+    job['stdout'] = os.path.join(out_dir, job['name'] + '.out')
+    job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
 
     job['command'] = " ".join([batch, replay_script, str(run), str(evts)])
 
     job['track'] = 'analysis'
-    job['shell'] = '/bin/bash'
+    job['shell'] = '/usr/bin/bash'
     job['os'] = 'centos7'
     job['diskBytes'] = 10000000000
     job['ramBytes'] = 8000000000
     job['cpuCores'] = 8
     job['timeSecs'] = 14400
 
-
+    job['input'] = [{}]
     job['input'][0]['local'] = os.path.basename(coda)
     job['input'][0]['remote'] = coda
-    job['output'][0]['local'] = 'result'
-    job['output'][0]['remote'] = os.path.join(work_dir, job['name'] + '.root')
-    job['output'][1]['local'] = 'meta'
-    job['output'][1]['remote'] = os.path.join(work_dir, job['name'] + '.meta')
 
-
-    jobs[run] = copy.deepcopy(job)
+    jobs.append(copy.deepcopy(job))
 
 # Put jobs' JSON data into the workflow
-workflow['jobs'] = jobs.values()
+workflow['jobs'] = jobs
 
 #------------------------------------------------------------------------------
 # Export JSON
 with open(outfile, 'w') as f:
     json.dump(workflow, f)
 
-print 'Wrote: ' + outfile
+print('Wrote: ' + outfile)
