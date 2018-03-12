@@ -234,17 +234,44 @@ def getReplayWorkflow(parsed_args, outfile):
 
 #------------------------------------------------------------------------------
 def getShellWorkflow(parsed_args, outfile):
-    # TODO: Implement this
-    raise RuntimeError('Shell batches not yet implemented. Sorry!')
-
     # Initialize workflow JSON data
     workflow = {}
     workflow_name = str.replace(outfile, ".json", "")
     workflow_name = os.path.basename(workflow_name)
     workflow['name'] = workflow_name
 
-    # command for job was specified by user
+    jobs = []
+    job = {}
+
+    job['project'] = project
+    job['name'] = workflow['name'] + '_' + coda_stem
+
+    job['stdout'] = os.path.join(out_dir, job['name'] + '.out')
+    job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
+
+    # command for job should be specified by user
+    if parsed_args.command==None:
+        raise RuntimeError('Must specify command for batch job')
     command = parsed_args.command[0]
+    job['command'] = command
+
+    job['track'] = 'analysis'
+    job['shell'] = '/usr/bin/bash'
+    job['os'] = 'centos7'
+
+    # TODO: Allow user to specify these
+    job['diskBytes'] = 10000000000
+    job['ramBytes'] = 8000000000
+    job['cpuCores'] = 8
+    job['timeSecs'] = 14400
+
+    job['input'] = [{}]
+    job['input'][0]['local'] = os.path.basename(coda)
+    job['input'][0]['remote'] = coda
+
+    jobs.append(copy.deepcopy(job))
+
+    workflow['jobs'] = jobs
     
     return workflow
 
