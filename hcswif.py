@@ -38,16 +38,18 @@ def main():
 #------------------------------------------------------------------------------
 def parseArgs():
     usage_str = ('\n\n'
-                 'You must specify at least --spectrometer and --run' 
+                 'For mode=replay, you must specify a spectrometer and run number' 
+                 'For mode=batch, you must specify a shell script/command' 
                  '\n\n'  
                  'python hcswif.py' 
                  ' --mode (replay|shell)'
                  ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' 
                  ' --run <a space-separated list of runs>' 
                  ' --events <number of events>' 
-                 ' --outfile <output json>' 
                  ' --replay <hcana replay script>' 
                  ' --command <shell command or script to run>'
+                 ' --filelist <file containing list of input files to jget>'
+                 ' --name <workflow name>' 
                  ' --project <project>')
     parser = argparse.ArgumentParser(usage=usage_str)
 
@@ -64,12 +66,14 @@ def parseArgs():
                         help='a space-separated list of run number(s)')
     parser.add_argument('--events', nargs=1, dest='events',
                         help='number of events to analyze (default=all)')
-    parser.add_argument('--outfile', nargs=1, dest='outfile', 
-                        help='name of output json file')
+    parser.add_argument('--name', nargs=1, dest='name', 
+                        help='workflow name')
     parser.add_argument('--replay', nargs=1, dest='replay', 
                         help='hcana replay script')
     parser.add_argument('--command', nargs=1, dest='command', 
                         help='shell command or script to run')
+    parser.add_argument('--filelist', nargs=1, dest='filelist', 
+                        help='file contaning list of input files to jget')
     parser.add_argument('--project', nargs=1, dest='project', 
                         help='name of project')
 
@@ -78,37 +82,38 @@ def parseArgs():
 
 #------------------------------------------------------------------------------
 def getWorkflow(parsed_args):
-    # Outfile
-    if parsed_args.outfile==None:
-        # No outfile specified, so we use datestr to create name
-        outfile = hcswif_prefix + '.json'
-        outfile = os.path.join(out_dir, outfile)
-    else:
-        # User-specified filename
-        outfile = parsed_args.outfile[0]
-        # Append .json if user forgot
-        if os.path.splitext(outfile)[1]!='.json':
-            outfile = outfile + '.json'
-        # Put it in out_dir
-        outfile = os.path.join(out_dir, outfile)
+    # Initialize
+    workflow = initializeWorkflow(parsed_args)
+    outfile = os.path.join(out_dir, workflow['name'] + '.json')
 
-    # TODO: Move workflow initialization and project assignment to common function
-
+    # Get jobs
     if parsed_args.mode==None:
         raise RuntimeError('Must specify a mode (replay or shell)')
-
     mode = parsed_args.mode[0].lower()
     if mode == 'replay':
-        workflow = getReplayWorkflow(parsed_args, outfile)
+        workflow['jobs'] = getReplayJobs(parsed_args, workflow['name'])
     elif mode == 'shell':
-        workflow = getShellWorkflow(parsed_args, outfile)
+        workflow['jobs'] = getShellJobs(parsed_args, workflow['name'])
     else:
         raise ValueError('Mode must be replay or shell')
+
+    # Add project to jobs
+    workflow = addCommonJobInfo(workflow, parsed_args)
 
     return workflow, outfile
 
 #------------------------------------------------------------------------------
-def getReplayWorkflow(parsed_args, outfile):
+def initializeWorkflow(parsed_args):
+    workflow = {}
+    if parsed_args.name==None:
+        workflow['name'] = hcswif_prefix
+    else:
+        workflow['name'] = parsed_args.name[0]
+
+    return workflow
+
+#------------------------------------------------------------------------------
+def getReplayJobs(parsed_args, wf_name):
     # Spectrometer
     spectrometer = parsed_args.spectrometer[0]
     if spectrometer.upper() not in ['HMS','SHMS','COIN', 'HMS_COIN', 'SHMS_COIN']:
@@ -155,37 +160,12 @@ def getReplayWorkflow(parsed_args, outfile):
     else:
         evts = parsed_args.events[0]
 
-    # Project
-    if parsed_args.project==None:
-        warnings.warn('No project specified.')
-
-        project_prompt = 'x'
-        while project_prompt.lower() not in ['y', 'n', 'yes', 'no']:
-            project_prompt = input('Should I use project=c-comm2017? (y/n): ')
-
-        if project_prompt.lower() in ['y', 'yes']:
-            project = 'c-comm2017'
-        else:
-            raise RuntimeError('Please specify project as argument')
-    else:
-        project = parsed_args.project[0]
-
-    #------------------------------------------------------------------------------
-    # Create JSON
-
-    # Initialize workflow JSON data
-    workflow = {}
-    workflow_name = str.replace(outfile, ".json", "")
-    workflow_name = os.path.basename(workflow_name)
-    workflow['name'] = workflow_name
-
     # command for job is `/hcswifdir/hcswif.sh REPLAY RUN NUMEVENTS`
     batch = os.path.join(hcswif_dir, 'hcswif.sh')
 
     # Create list of jobs for workflow
     jobs = []
     for run in runs:
-        # Initialize JSON
         job = {}
 
         # Assume coda stem looks like shms_all_XXXXX, hms_all_XXXXX, or coin_all_XXXXX
@@ -202,52 +182,22 @@ def getReplayWorkflow(parsed_args, outfile):
         if not os.path.isfile(coda):
             raise FileNotFoundError('RAW DATA: ' + coda + ' does not exist')
 
-        # Fill various fields; some are optional?
-        job['project'] = project
-        job['name'] = workflow['name'] + '_' + coda_stem
-
-        job['stdout'] = os.path.join(out_dir, job['name'] + '.out')
-        job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
-
-        job['command'] = " ".join([batch, replay_script, str(run), str(evts)])
-
-        job['track'] = 'analysis'
-        job['shell'] = '/usr/bin/bash'
-        job['os'] = 'centos7'
-
-        # TODO: Allow user to specify these
-        job['diskBytes'] = 10000000000
-        job['ramBytes'] = 8000000000
-        job['cpuCores'] = 8
-        job['timeSecs'] = 14400
-
+        job['name'] =  wf_name + '_' + coda_stem
         job['input'] = [{}]
         job['input'][0]['local'] = os.path.basename(coda)
         job['input'][0]['remote'] = coda
 
+        job['command'] = " ".join([batch, replay_script, str(run), str(evts)])
+
         jobs.append(copy.deepcopy(job))
 
-    # Put jobs' JSON data into the workflow
-    workflow['jobs'] = jobs
-
-    return workflow
+    return jobs
 
 #------------------------------------------------------------------------------
-def getShellWorkflow(parsed_args, outfile):
-    # Initialize workflow JSON data
-    workflow = {}
-    workflow_name = str.replace(outfile, ".json", "")
-    workflow_name = os.path.basename(workflow_name)
-    workflow['name'] = workflow_name
-
+def getShellJobs(parsed_args, wf_name):
     jobs = []
     job = {}
-
-    job['project'] = project
-    job['name'] = workflow['name'] + '_' + coda_stem
-
-    job['stdout'] = os.path.join(out_dir, job['name'] + '.out')
-    job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
+    job['name'] = wf_name + '_job'
 
     # command for job should be specified by user
     if parsed_args.command==None:
@@ -255,24 +205,68 @@ def getShellWorkflow(parsed_args, outfile):
     command = parsed_args.command[0]
     job['command'] = command
 
-    job['track'] = 'analysis'
-    job['shell'] = '/usr/bin/bash'
-    job['os'] = 'centos7'
+    # Add any necessary input files
+    if parsed_args.filelist==None:
+        warnings.warn('No file list specified! Assuming your shell script has any necessary jgets') 
+    else:
+        filelist = parsed_args.filelist[0]
+        f = open(filelist,'r') 
+        lines = f.readlines()
 
-    # TODO: Allow user to specify these
-    job['diskBytes'] = 10000000000
-    job['ramBytes'] = 8000000000
-    job['cpuCores'] = 8
-    job['timeSecs'] = 14400
-
-    job['input'] = [{}]
-    job['input'][0]['local'] = os.path.basename(coda)
-    job['input'][0]['remote'] = coda
+        # We assume user has been smart enough to only specify valid files
+        # or, at worst, lines only containing a \n
+        job['input'] = []
+        for line in lines:
+            filename = line.strip('\n')
+            if len(filename)>0:
+                if not os.path.isfile(filename):
+                    raise FileNotFoundError('RAW DATA: ' + filename + ' does not exist')
+                inp={}
+                inp['local'] = os.path.basename(filename)
+                inp['remote'] = filename
+                job['input'].append(inp)
 
     jobs.append(copy.deepcopy(job))
-
-    workflow['jobs'] = jobs
     
+    return jobs
+
+#------------------------------------------------------------------------------
+def addCommonJobInfo(workflow, parsed_args):
+    # Project
+    if parsed_args.project==None:
+        warnings.warn('No project specified.')
+
+        project_prompt = 'x'
+        while project_prompt.lower() not in ['y', 'n', 'yes', 'no']:
+            project_prompt = input('Should I use project=c-comm2017? (y/n): ')
+
+        if project_prompt.lower() in ['y', 'yes']:
+            project = 'c-comm2017'
+        else:
+            raise RuntimeError('Please specify project as argument')
+    else:
+        project = parsed_args.project[0]
+
+    for n in range(0, len(workflow['jobs'])):
+        job = copy.deepcopy(workflow['jobs'][n])
+
+        job['project'] = project
+
+        job['stdout'] = os.path.join(out_dir, job['name'] + '.out')
+        job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
+
+        # TODO: Allow user to specify these parameters
+        job['track'] = 'analysis'
+        job['shell'] = '/usr/bin/bash'
+        job['os'] = 'centos7'
+        job['diskBytes'] = 10000000000
+        job['ramBytes'] = 8000000000
+        job['cpuCores'] = 8
+        job['timeSecs'] = 14400
+
+        workflow['jobs'][n] = copy.deepcopy(job)
+        job.clear()
+
     return workflow
 
 #------------------------------------------------------------------------------

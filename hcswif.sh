@@ -20,7 +20,8 @@ if [ -z "$(which hcana)" ]; then
 fi
 
 # Replay the run
+runHcana="./hcana \"$script($run,$evt)\""
 cd $hallc_replay_dir
 echo pwd: $(pwd)
-echo ./hcana "$script($run,$evt)"
-./hcana "$script($run,$evt)"
+echo $runHcana
+eval $runHcana
