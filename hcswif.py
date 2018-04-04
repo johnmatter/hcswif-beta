@@ -134,11 +134,11 @@ def getReplayJobs(parsed_args, wf_name):
         if spectrometer.upper() == 'COIN':
             print('COIN replay script depends on spectrometer configuration.')
             print('1) HMS=e, SHMS=p (SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C)')
-            print('1) HMS=p, SHMS=e (SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C)')
+            print('2) HMS=p, SHMS=e (SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C)')
             replay_script = input("Enter 1 or 2: ")
             
-            script_dict = { 1 : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C', 
-                            2 : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C' }
+            script_dict = { '1' : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C', 
+                            '2' : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C' }
             replay_script = script_dict[replay_script]
 
         # We have 4 options for singles replay; "real" singles or "coin" singles
