@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import re
 import sys
 import copy
 import json
@@ -37,25 +38,7 @@ def main():
 
 #------------------------------------------------------------------------------
 def parseArgs():
-    usage_str = ('\n\n'
-            'For mode=replay, you must specify a spectrometer and run number' 
-            'For mode=batch, you must specify a shell script/command' 
-            '\n\n'  
-            'python hcswif.py' 
-            ' --mode (replay|shell)'
-            ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' 
-            ' --run <a space-separated list of runs>' 
-            ' --events <number of events>' 
-            ' --replay <hcana replay script>' 
-            ' --command <shell command or script to run>'
-            ' --filelist <file containing list of input files to jget>'
-            ' --name <workflow name>' 
-            ' --project <project>')
-    parser = argparse.ArgumentParser(usage=usage_str)
-
-    # Check if any args specified
-    if len(sys.argv) < 2:
-        raise RuntimeError(parser.print_help())
+    parser = argparse.ArgumentParser()
 
     # Add arguments
     parser.add_argument('--mode', nargs=1, dest='mode',
@@ -63,19 +46,31 @@ def parseArgs():
     parser.add_argument('--spectrometer', nargs=1, dest='spectrometer',
             help='spectrometer to analyze (HMS, SHMS, COIN, HMS_COIN, SHMS_COIN)')
     parser.add_argument('--run', nargs='+', dest='run', 
-            help='a space-separated list of run number(s)')
+            help='a list of run numbers and ranges, or a file listing run numbers')
     parser.add_argument('--events', nargs=1, dest='events',
             help='number of events to analyze (default=all)')
     parser.add_argument('--name', nargs=1, dest='name', 
             help='workflow name')
     parser.add_argument('--replay', nargs=1, dest='replay', 
-            help='hcana replay script')
+            help='hcana replay script (path relative to hallc_replay)')
     parser.add_argument('--command', nargs=1, dest='command', 
-            help='shell command or script to run')
+            help='shell command or script to run (shell mode only)')
     parser.add_argument('--filelist', nargs=1, dest='filelist', 
-            help='file contaning list of input files to jget')
+            help='file contaning list of input files to jget (shell mode only)')
     parser.add_argument('--project', nargs=1, dest='project', 
             help='name of project')
+    parser.add_argument('--disk', nargs=1, dest='disk', 
+            help='disk space in bytes')
+    parser.add_argument('--ram', nargs=1, dest='ram', 
+            help='ram space in bytes')
+    parser.add_argument('--cpu', nargs=1, dest='cpu', 
+            help='cpu cores')
+    parser.add_argument('--time', nargs=1, dest='time', 
+            help='max run time per job in seconds allowed before killing jobs')
+
+    # Check if any args specified
+    if len(sys.argv) < 2:
+        raise RuntimeError(parser.print_help())
 
     # Return parsed arguments
     return parser.parse_args()
@@ -123,7 +118,7 @@ def getReplayJobs(parsed_args, wf_name):
     if parsed_args.run==None:
         raise RuntimeError('Must specify run(s) to process')
     else:
-        runs = parsed_args.run
+        runs = getReplayRuns(parsed_args.run)
 
     # Replay script to use
     if parsed_args.replay==None:
@@ -180,7 +175,8 @@ def getReplayJobs(parsed_args, wf_name):
 
         # Check if raw data file exist
         if not os.path.isfile(coda):
-            warnings.warn('RAW DATA: ' + coda + ' does not exist')
+            warnings.warn('RAW DATA: ' + coda + ' does not exist. Skipping this job.')
+            continue
 
         job['name'] =  wf_name + '_' + coda_stem
         job['input'] = [{}]
@@ -192,6 +188,44 @@ def getReplayJobs(parsed_args, wf_name):
         jobs.append(copy.deepcopy(job))
 
     return jobs
+
+#------------------------------------------------------------------------------
+def getReplayRuns(run_args):
+    runs = []
+    # User specified a file containing runs
+    if (run_args[0]=='file'):
+        filelist = run_args[1]
+        f = open(filelist,'r') 
+        lines = f.readlines()
+
+        # We assume user has been smart enough to only specify valid run numbers 
+        # or, at worst, lines only containing a \n
+        for line in lines:
+            run = line.strip('\n')
+            if len(run)>0:
+                runs.append(int(run))
+
+    # Arguments are either individual runs or ranges of runs. We check with a regex
+    else:
+        for arg in run_args:
+            # Is it a range? e.g. 2040-2055
+            if re.match('^\d+-\d+$', arg):
+                limits = re.split(r'-', arg)
+                first = int(limits[0])
+                last = int(limits[1]) + 1 # range(n,m) stops at m-1
+
+                for run in range(first, last):
+                    runs.append(run)
+
+            # Is it a single run? e.g. 2049
+            elif re.match('^\d+$', arg):
+                runs.append(int(arg))
+
+            # Else, invalid argument so we warn and skip it 
+            else:
+                warnings.warn('Invalid run argument: ' + arg)
+
+    return runs
 
 #------------------------------------------------------------------------------
 def getShellJobs(parsed_args, wf_name):
@@ -233,6 +267,7 @@ def getShellJobs(parsed_args, wf_name):
 #------------------------------------------------------------------------------
 def addCommonJobInfo(workflow, parsed_args):
     # Project
+    # TODO: Remove default?
     if parsed_args.project==None:
         warnings.warn('No project specified.')
 
@@ -247,6 +282,31 @@ def addCommonJobInfo(workflow, parsed_args):
     else:
         project = parsed_args.project[0]
 
+    # Disk space in bytes
+    if parsed_args.disk==None:
+        disk_bytes = 10000000000
+    else:
+        disk_bytes = int(parsed_args.disk[0])
+
+    # RAM in bytes
+    if parsed_args.ram==None:
+        ram_bytes = 8000000000 
+    else:
+        ram_bytes = int(parsed_args.ram[0])
+
+    # CPUs
+    if parsed_args.cpu==None:
+        cpu = 8
+    else:
+        cpu = int(parsed_args.cpu[0])
+
+    # Max time in seconds before killing jobs
+    if parsed_args.time==None:
+        time = 14400 
+    else:
+        time = int(parsed_args.time[0])
+
+    # Loop over jobs and add info
     for n in range(0, len(workflow['jobs'])):
         job = copy.deepcopy(workflow['jobs'][n])
 
@@ -255,14 +315,14 @@ def addCommonJobInfo(workflow, parsed_args):
         job['stdout'] = os.path.join(out_dir, job['name'] + '.out')
         job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
 
-        # TODO: Allow user to specify these parameters
+        # TODO: Allow user to specify all of these parameters
         job['track'] = 'analysis'
         job['shell'] = '/usr/bin/bash'
         job['os'] = 'centos7'
-        job['diskBytes'] = 10000000000
-        job['ramBytes'] = 8000000000
-        job['cpuCores'] = 8
-        job['timeSecs'] = 14400
+        job['diskBytes'] = disk_bytes 
+        job['ramBytes'] = ram_bytes 
+        job['cpuCores'] = cpu 
+        job['timeSecs'] = time 
 
         workflow['jobs'][n] = copy.deepcopy(job)
         job.clear()
