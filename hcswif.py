@@ -14,12 +14,12 @@ import warnings
 # Where do you want your job output (json files, stdout, stderr)?
 out_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser() , 'hcswif/output')
 if not os.path.isdir(out_dir):
-     raise FileNotFoundError('out_dir: ' + out_dir + ' does not exist')
+    warnings.warn('out_dir: ' + out_dir + ' does not exist')
 
 # Where is your raw data?
 raw_dir = '/mss/hallc/spring17/raw'
 if not os.path.isdir(raw_dir):
-    raise FileNotFoundError('raw_dir: ' + raw_dir + ' does not exist')
+    warnings.warn('raw_dir: ' + raw_dir + ' does not exist')
 
 # Where is hcswif?
 hcswif_dir = os.path.dirname(os.path.realpath(__file__))
@@ -38,19 +38,19 @@ def main():
 #------------------------------------------------------------------------------
 def parseArgs():
     usage_str = ('\n\n'
-                 'For mode=replay, you must specify a spectrometer and run number' 
-                 'For mode=batch, you must specify a shell script/command' 
-                 '\n\n'  
-                 'python hcswif.py' 
-                 ' --mode (replay|shell)'
-                 ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' 
-                 ' --run <a space-separated list of runs>' 
-                 ' --events <number of events>' 
-                 ' --replay <hcana replay script>' 
-                 ' --command <shell command or script to run>'
-                 ' --filelist <file containing list of input files to jget>'
-                 ' --name <workflow name>' 
-                 ' --project <project>')
+            'For mode=replay, you must specify a spectrometer and run number' 
+            'For mode=batch, you must specify a shell script/command' 
+            '\n\n'  
+            'python hcswif.py' 
+            ' --mode (replay|shell)'
+            ' --spectrometer (HMS|SHMS|COIN|HMS_COIN|SHMS_COIN)' 
+            ' --run <a space-separated list of runs>' 
+            ' --events <number of events>' 
+            ' --replay <hcana replay script>' 
+            ' --command <shell command or script to run>'
+            ' --filelist <file containing list of input files to jget>'
+            ' --name <workflow name>' 
+            ' --project <project>')
     parser = argparse.ArgumentParser(usage=usage_str)
 
     # Check if any args specified
@@ -59,23 +59,23 @@ def parseArgs():
 
     # Add arguments
     parser.add_argument('--mode', nargs=1, dest='mode',
-                        help='type of workflow (replay or shell)')
+            help='type of workflow (replay or shell)')
     parser.add_argument('--spectrometer', nargs=1, dest='spectrometer',
-                        help='spectrometer to analyze (HMS, SHMS, COIN, HMS_COIN, SHMS_COIN)')
+            help='spectrometer to analyze (HMS, SHMS, COIN, HMS_COIN, SHMS_COIN)')
     parser.add_argument('--run', nargs='+', dest='run', 
-                        help='a space-separated list of run number(s)')
+            help='a space-separated list of run number(s)')
     parser.add_argument('--events', nargs=1, dest='events',
-                        help='number of events to analyze (default=all)')
+            help='number of events to analyze (default=all)')
     parser.add_argument('--name', nargs=1, dest='name', 
-                        help='workflow name')
+            help='workflow name')
     parser.add_argument('--replay', nargs=1, dest='replay', 
-                        help='hcana replay script')
+            help='hcana replay script')
     parser.add_argument('--command', nargs=1, dest='command', 
-                        help='shell command or script to run')
+            help='shell command or script to run')
     parser.add_argument('--filelist', nargs=1, dest='filelist', 
-                        help='file contaning list of input files to jget')
+            help='file contaning list of input files to jget')
     parser.add_argument('--project', nargs=1, dest='project', 
-                        help='name of project')
+            help='name of project')
 
     # Return parsed arguments
     return parser.parse_args()
@@ -136,22 +136,22 @@ def getReplayJobs(parsed_args, wf_name):
             print('1) HMS=e, SHMS=p (SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C)')
             print('2) HMS=p, SHMS=e (SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C)')
             replay_script = input("Enter 1 or 2: ")
-            
+
             script_dict = { '1' : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_hElec_pProt.C', 
                             '2' : 'SCRIPTS/COIN/PRODUCTION/replay_production_coin_pElec_hProt.C' }
             replay_script = script_dict[replay_script]
 
         # We have 4 options for singles replay; "real" singles or "coin" singles
         else:
-            script_dict = { 'HMS' : 'SCRIPTS/HMS/PRODUCTION/replay_production_all_hms.C',
-                            'SHMS' : 'SCRIPTS/SHMS/PRODUCTION/replay_production_all_shms.C',
-                            'HMS_COIN' : 'SCRIPTS/HMS/PRODUCTION/replay_production_hms_coin.C',
+            script_dict = { 'HMS'       : 'SCRIPTS/HMS/PRODUCTION/replay_production_all_hms.C',
+                            'SHMS'      : 'SCRIPTS/SHMS/PRODUCTION/replay_production_all_shms.C',
+                            'HMS_COIN'  : 'SCRIPTS/HMS/PRODUCTION/replay_production_hms_coin.C',
                             'SHMS_COIN' : 'SCRIPTS/SHMS/PRODUCTION/replay_production_shms_coin.C' }
             replay_script = script_dict[spectrometer.upper()]
-
-        # User specified a script so we use that one
+    # User specified a script so we use that one
     else:
         replay_script = parsed_args.replay[0]
+
 
     # Number of events; default is -1 (i.e. all)
     if parsed_args.events==None:
@@ -180,7 +180,7 @@ def getReplayJobs(parsed_args, wf_name):
 
         # Check if raw data file exist
         if not os.path.isfile(coda):
-            raise FileNotFoundError('RAW DATA: ' + coda + ' does not exist')
+            warnings.warn('RAW DATA: ' + coda + ' does not exist')
 
         job['name'] =  wf_name + '_' + coda_stem
         job['input'] = [{}]
@@ -220,14 +220,14 @@ def getShellJobs(parsed_args, wf_name):
             filename = line.strip('\n')
             if len(filename)>0:
                 if not os.path.isfile(filename):
-                    raise FileNotFoundError('RAW DATA: ' + filename + ' does not exist')
+                    warnings.warn('RAW DATA: ' + filename + ' does not exist')
                 inp={}
                 inp['local'] = os.path.basename(filename)
                 inp['remote'] = filename
                 job['input'].append(inp)
 
     jobs.append(copy.deepcopy(job))
-    
+
     return jobs
 
 #------------------------------------------------------------------------------
