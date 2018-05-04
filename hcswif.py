@@ -4,6 +4,7 @@ import re
 import sys
 import copy
 import json
+import shutil
 import getpass
 import argparse
 import datetime
@@ -13,7 +14,7 @@ import warnings
 # Define environment
 
 # Where do you want your job output (json files, stdout, stderr)?
-out_dir = os.path.join('/volatile/hallc/comm2017/', getpass.getuser() , 'hcswif/output')
+out_dir = os.path.join('/home/', getpass.getuser() , 'hcswif/output')
 if not os.path.isdir(out_dir):
     warnings.warn('out_dir: ' + out_dir + ' does not exist')
 
@@ -42,7 +43,7 @@ def parseArgs():
 
     # Add arguments
     parser.add_argument('--mode', nargs=1, dest='mode',
-            help='type of workflow (replay or shell)')
+            help='type of workflow (replay or command)')
     parser.add_argument('--spectrometer', nargs=1, dest='spectrometer',
             help='spectrometer to analyze (HMS, SHMS, COIN, HMS_COIN, SHMS_COIN)')
     parser.add_argument('--run', nargs='+', dest='run', 
@@ -52,11 +53,11 @@ def parseArgs():
     parser.add_argument('--name', nargs=1, dest='name', 
             help='workflow name')
     parser.add_argument('--replay', nargs=1, dest='replay', 
-            help='hcana replay script (path relative to hallc_replay)')
+            help='hcana replay script; path relative to hallc_replay')
     parser.add_argument('--command', nargs=1, dest='command', 
-            help='shell command or script to run (shell mode only)')
+            help='shell command or script to run; in quotes (command mode only)')
     parser.add_argument('--filelist', nargs=1, dest='filelist', 
-            help='file contaning list of input files to jget (shell mode only)')
+            help='file contaning list of input files to jget (command mode only)')
     parser.add_argument('--project', nargs=1, dest='project', 
             help='name of project')
     parser.add_argument('--disk', nargs=1, dest='disk', 
@@ -67,6 +68,8 @@ def parseArgs():
             help='cpu cores')
     parser.add_argument('--time', nargs=1, dest='time', 
             help='max run time per job in seconds allowed before killing jobs')
+    parser.add_argument('--shell', nargs=1, dest='shell', 
+            help='shell to use for jobs')
 
     # Check if any args specified
     if len(sys.argv) < 2:
@@ -83,14 +86,14 @@ def getWorkflow(parsed_args):
 
     # Get jobs
     if parsed_args.mode==None:
-        raise RuntimeError('Must specify a mode (replay or shell)')
+        raise RuntimeError('Must specify a mode (replay or command)')
     mode = parsed_args.mode[0].lower()
     if mode == 'replay':
         workflow['jobs'] = getReplayJobs(parsed_args, workflow['name'])
-    elif mode == 'shell':
-        workflow['jobs'] = getShellJobs(parsed_args, workflow['name'])
+    elif mode == 'command':
+        workflow['jobs'] = getCommandJobs(parsed_args, workflow['name'])
     else:
-        raise ValueError('Mode must be replay or shell')
+        raise ValueError('Mode must be replay or command')
 
     # Add project to jobs
     workflow = addCommonJobInfo(workflow, parsed_args)
@@ -228,7 +231,7 @@ def getReplayRuns(run_args):
     return runs
 
 #------------------------------------------------------------------------------
-def getShellJobs(parsed_args, wf_name):
+def getCommandJobs(parsed_args, wf_name):
     jobs = []
     job = {}
     job['name'] = wf_name + '_job'
@@ -306,6 +309,12 @@ def addCommonJobInfo(workflow, parsed_args):
     else:
         time = int(parsed_args.time[0])
 
+    # Shell
+    if parsed_args.shell==None:
+        shell = shutil.which('bash')
+    else:
+        shell = shutil.which(parsed_args.shell[0])
+
     # Loop over jobs and add info
     for n in range(0, len(workflow['jobs'])):
         job = copy.deepcopy(workflow['jobs'][n])
@@ -316,13 +325,13 @@ def addCommonJobInfo(workflow, parsed_args):
         job['stderr'] = os.path.join(out_dir, job['name'] + '.err')
 
         # TODO: Allow user to specify all of these parameters
-        job['track'] = 'analysis'
-        job['shell'] = '/usr/bin/bash'
         job['os'] = 'centos7'
+        job['track'] = 'analysis'
         job['diskBytes'] = disk_bytes 
         job['ramBytes'] = ram_bytes 
         job['cpuCores'] = cpu 
         job['timeSecs'] = time 
+        job['shell'] = shell
 
         workflow['jobs'][n] = copy.deepcopy(job)
         job.clear()
