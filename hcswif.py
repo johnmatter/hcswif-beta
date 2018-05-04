@@ -158,8 +158,13 @@ def getReplayJobs(parsed_args, wf_name):
     else:
         evts = parsed_args.events[0]
 
-    # command for job is `/hcswifdir/hcswif.sh REPLAY RUN NUMEVENTS`
-    batch = os.path.join(hcswif_dir, 'hcswif.sh')
+    # Which hcswif shell script should we use? bash or csh?
+    if parsed_args.shell==None:
+        batch = os.path.join(hcswif_dir, 'hcswif.sh')
+    elif re.search('bash', parsed_args.shell[0]):
+        batch = os.path.join(hcswif_dir, 'hcswif.sh')
+    elif re.search('csh', parsed_args.shell[0]):
+        batch = os.path.join(hcswif_dir, 'hcswif.csh')
 
     # Create list of jobs for workflow
     jobs = []
@@ -186,6 +191,7 @@ def getReplayJobs(parsed_args, wf_name):
         job['input'][0]['local'] = os.path.basename(coda)
         job['input'][0]['remote'] = coda
 
+        # command for job is `/hcswifdir/hcswif.sh REPLAY RUN NUMEVENTS`
         job['command'] = " ".join([batch, replay_script, str(run), str(evts)])
 
         jobs.append(copy.deepcopy(job))
@@ -232,6 +238,7 @@ def getReplayRuns(run_args):
 
 #------------------------------------------------------------------------------
 def getCommandJobs(parsed_args, wf_name):
+    # TODO: Multiple jobs per workflow, specified by a file
     jobs = []
     job = {}
     job['name'] = wf_name + '_job'
